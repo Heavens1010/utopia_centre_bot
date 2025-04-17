@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: utopia-centre-bot
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python lark_centre_bot.py"
