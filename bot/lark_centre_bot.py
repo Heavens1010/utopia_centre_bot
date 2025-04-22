@@ -69,8 +69,8 @@ def send_lark_message(open_id, message):
 @app.route("/lark/events/org", methods=["POST"])
 def handle_event():
     body = request.json
-    print("✅ STEP 1 ✅ Received event:", event)
-", json.dumps(body, indent=2, ensure_ascii=False))
+    print("✅ STEP 1 ✅ Received event:")
+    print("Final JSON body:", json.dumps(body, indent=2, ensure_ascii=False))
 
     if body.get("type") == "url_verification":
         return jsonify({"challenge": body.get("challenge")})
@@ -114,6 +114,7 @@ def handle_event():
     print("✅ STEP 6.3 Final answer:", answer)
     send_lark_message(sender_id, answer)
     return "OK"
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))
