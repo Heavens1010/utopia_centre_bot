@@ -1,1 +1,1 @@
-web: python lark_centre_bot.py
+web: python bot/lark_centre_bot.py
