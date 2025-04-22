@@ -3,4 +3,4 @@ services:
     name: utopia-centre-bot
     env: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "python lark_centre_bot.py"
+    startCommand: "python kb_builder/build_vector_store_from_docs.py && python bot/lark_centre_bot.py"
