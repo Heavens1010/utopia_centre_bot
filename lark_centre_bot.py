@@ -49,6 +49,8 @@ def send_lark_message(open_id, message):
 
 @app.route("/lark/events/org", methods=["POST"])
 def lark_event_handler():
+    print("🧵 Full raw request received")
+    print(json.dumps(request.json, indent=2, ensure_ascii=False))
     body = request.json
     if body.get("type") == "url_verification":
         return jsonify({"challenge": body["challenge"]})
