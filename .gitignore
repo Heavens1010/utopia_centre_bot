@@ -1,17 +1,3 @@
-# Environment
-.env
-.env.*
-
-# Python cache
-__pycache__/
-*.pyc
-
-# Vector database (Chroma, FAISS etc)
 vector_store/
 bot/vector_store/
 kb_builder/vector_store/
-
-# System files
-.DS_Store
-Thumbs.db
-
