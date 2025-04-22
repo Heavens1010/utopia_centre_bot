@@ -1,0 +1,19 @@
+
+<!doctype html>
+<html>
+  <head>
+    <title>上传知识库</title>
+    <style>
+      body { font-family: sans-serif; margin: 40px; }
+      h1 { color: #444; }
+      input[type=file] { margin-bottom: 10px; }
+    </style>
+  </head>
+  <body>
+    <h1>📚 上传新的 knowledge_centre.json</h1>
+    <form action="/" method="post" enctype="multipart/form-data">
+      <input type="file" name="file" accept=".json"><br>
+      <input type="submit" value="上传并重建向量库">
+    </form>
+  </body>
+</html>
