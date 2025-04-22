@@ -114,14 +114,20 @@ def handle_event():
             return "OK"
 
         # 🤖 Normal QA response
+        import traceback
+
         try:
             result = qa_chain({"question": user_input})
             answer = result.get("answer", "").strip()
             sources = result.get("sources", "").strip()
+
+            print("🧠 Raw QA result:", result)
+
             if not answer or not sources or "I don't know" in answer:
                 answer = "Sorry, I can only answer questions related to Utopia Education. Please ask something specific about our platform."
         except Exception as e:
-            print("❌ QA processing failed:", e)
+            print("❌ QA processing failed:")
+            traceback.print_exc()
             answer = "Oops, I couldn't process your question. Please try again later."
 
         print("🟢 Final answer:", answer)
