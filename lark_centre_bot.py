@@ -10,14 +10,12 @@ from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import OpenAIEmbeddings
 
 load_dotenv()
-
 app = Flask(__name__)
 
-# Load vector store and build RetrievalQA with sources
+# Initial vector store and chain
 embedding = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
 vectorstore = Chroma(persist_directory="vector_store", embedding_function=embedding)
 retriever = vectorstore.as_retriever()
-
 qa_chain = RetrievalQAWithSourcesChain.from_chain_type(
     llm=ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), temperature=0),
     retriever=retriever,
@@ -85,18 +83,43 @@ def handle_event():
             return "OK"
 
         content = json.loads(message.get("content", "{}"))
-        user_question = content.get("text", "").strip()
-        print(f"💬 Question from {sender_id}: {user_question}")
+        user_input = content.get("text", "").strip()
+        print(f"💬 Message from {sender_id}: {user_input}")
 
+        # ⌨️ Handle commands
+        if user_input.startswith("/"):
+            if user_input == "/help":
+                answer = (
+                    "🛠 Lark Bot 支持以下指令：\n"
+                    "/help - 显示帮助菜单\n"
+                    "/reload - 重新加载知识库（如你上传了新 JSON）\n"
+                    "/version - 显示当前版本"
+                )
+            elif user_input == "/reload":
+                try:
+                    global vectorstore, retriever, qa_chain
+                    embedding = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
+                    vectorstore = Chroma(persist_directory="vector_store", embedding_function=embedding)
+                    retriever = vectorstore.as_retriever()
+                    qa_chain.retriever = retriever
+                    answer = "🔄 知识库已重新加载成功。"
+                except Exception as e:
+                    answer = f"❌ 重载失败：{str(e)}"
+            elif user_input == "/version":
+                answer = "🤖 Utopia Lark Bot v2.0 (with boundary-aware QA + commands)"
+            else:
+                answer = "❓ 未知指令。请输入 /help 查看支持命令。"
+
+            send_lark_message(sender_id, answer)
+            return "OK"
+
+        # 🤖 Normal QA response
         try:
-            result = qa_chain({"question": user_question})
+            result = qa_chain({"question": user_input})
             answer = result.get("answer", "").strip()
             sources = result.get("sources", "").strip()
-
-            # If answer is empty or from no source, assume hallucination
             if not answer or not sources or "I don't know" in answer:
                 answer = "Sorry, I can only answer questions related to Utopia Education. Please ask something specific about our platform."
-
         except Exception as e:
             print("❌ QA processing failed:", e)
             answer = "Oops, I couldn't process your question. Please try again later."
