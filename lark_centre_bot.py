@@ -62,7 +62,12 @@ def lark_event_handler():
         user_question = content.get("text", "")
         print("🟡 User message:", user_question)
 
-        answer = qa_chain.run(user_question)
+        results = vectorstore.similarity_search(user_question, k=3)
+    if results:
+        answer = results[0].page_content
+    else:
+        answer = "Sorry, I don't know the answer to that yet."
+
         print("🟢 Answer sent:", answer)
         send_lark_message(open_id, answer)
 
