@@ -64,12 +64,14 @@ def lark_event_handler():
 
         results = vectorstore.similarity_search(user_question, k=3)
     if results:
+        print("🔍 Matched question:", results[0].metadata.get("question", "N/A"))
+        print("✅ Answer returned:", results[0].page_content)
         answer = results[0].page_content
     else:
         answer = "Sorry, I don't know the answer to that yet."
 
-    print("🟢 Answer sent:", answer)
-    send_lark_message(open_id, answer)
+        print("🟢 Answer sent:", answer)
+        send_lark_message(open_id, answer)
 
     return "OK"
 
