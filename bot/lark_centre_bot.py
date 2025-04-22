@@ -98,7 +98,7 @@ def handle_event():
         start = time.time()
         result = qa_chain({"question": user_input})
         duration = time.time() - start
-        print(f"✅ STEP 6 ✅ QA result (took {duration:.2f}s):", json.dumps(result, indent=2, ensure_ascii=False))
+        print(f"✅ STEP 6 ✅ QA result (took {duration:.2f}s):", result)
 
         answer = result.get("answer", "").strip()
         sources = result.get("sources", "").strip()
