@@ -69,7 +69,7 @@ def send_lark_message(open_id, message):
 @app.route("/lark/events/org", methods=["POST"])
 def handle_event():
     body = request.json
-    print("✅ STEP 1 ✅ Received event:
+    print("✅ STEP 1 ✅ Received event:", event)
 ", json.dumps(body, indent=2, ensure_ascii=False))
 
     if body.get("type") == "url_verification":
