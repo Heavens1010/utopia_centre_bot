@@ -1,3 +1,4 @@
+
 import os
 import json
 import requests
@@ -8,10 +9,12 @@ from langchain_openai import OpenAIEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.chat_models import ChatOpenAI
 
+# Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
 
+# Setup vector database and QA chain
 embedding = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
 vectorstore = Chroma(persist_directory="vector_store", embedding_function=embedding)
 qa_chain = RetrievalQA.from_chain_type(
@@ -21,19 +24,27 @@ qa_chain = RetrievalQA.from_chain_type(
 )
 
 def get_access_token():
-    url = "https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal"
-    headers = {"Content-Type": "application/json"}
-    payload = {
-        "app_id": os.getenv("LARK_APP_ID"),
-        "app_secret": os.getenv("LARK_APP_SECRET")
-    }
-    response = requests.post(url, headers=headers, json=payload)
-    res_data = response.json()
-    print("🛑 Token response:", res_data)
-    return res_data["tenant_access_token"]
+    try:
+        url = "https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "app_id": os.getenv("LARK_APP_ID"),
+            "app_secret": os.getenv("LARK_APP_SECRET")
+        }
+        response = requests.post(url, headers=headers, json=payload)
+        res_data = response.json()
+        print("🛑 Token response:", res_data)
+        return res_data["tenant_access_token"]
+    except Exception as e:
+        print("❌ Failed to fetch Lark token:", e)
+        return None
 
 def send_lark_message(open_id, message):
     access_token = get_access_token()
+    if not access_token:
+        print("⚠️ No access token. Message not sent.")
+        return
+
     url = "https://open.larksuite.com/open-apis/im/v1/messages?receive_id_type=open_id"
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -44,14 +55,18 @@ def send_lark_message(open_id, message):
         "msg_type": "text",
         "content": json.dumps({"text": message})
     }
-    response = requests.post(url, headers=headers, json=payload)
-    print("📤 Lark message send result:", response.json())
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        print("📤 Lark message send result:", response.json())
+    except Exception as e:
+        print("❌ Failed to send Lark message:", e)
 
 @app.route("/lark/events/org", methods=["POST"])
 def lark_event_handler():
     print("🧵 Full raw request received")
     print(json.dumps(request.json, indent=2, ensure_ascii=False))
     body = request.json
+
     if body.get("type") == "url_verification":
         return jsonify({"challenge": body["challenge"]})
 
@@ -64,15 +79,11 @@ def lark_event_handler():
         user_question = content.get("text", "")
         print("🟡 User message:", user_question)
 
-        results = vectorstore.similarity_search(user_question, k=3)
-        if results:
-            print("🔍 Matched question:", results[0].metadata.get("question", "N/A"))
-            print("✅ Answer returned:", results[0].page_content)
-            answer = results[0].page_content
-        else:
-            print("🔴 No vector match found")
-    else:
-        answer = "Sorry, I don't know the answer to that yet."
+        try:
+            answer = qa_chain.run(user_question)
+        except Exception as e:
+            print("❌ QA chain failed:", e)
+            answer = "Oops, I ran into an error. Please try again later."
 
         print("🟢 Answer sent:", answer)
         send_lark_message(open_id, answer)
