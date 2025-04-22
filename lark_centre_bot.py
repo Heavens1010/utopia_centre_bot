@@ -4,24 +4,27 @@ import json
 import requests
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
-from langchain_community.vectorstores import Chroma
-from langchain_openai import OpenAIEmbeddings
-from langchain.chains import RetrievalQA
+from langchain.chains import RetrievalQAWithSourcesChain
 from langchain.chat_models import ChatOpenAI
+from langchain_community.vectorstores import Chroma
+from langchain_community.embeddings import OpenAIEmbeddings
 
-# Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
 
-# Setup vector database and QA chain
+# Load vector store and build RetrievalQA with sources
 embedding = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
 vectorstore = Chroma(persist_directory="vector_store", embedding_function=embedding)
-qa_chain = RetrievalQA.from_chain_type(
-    llm=ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY")),
-    chain_type="stuff",
-    retriever=vectorstore.as_retriever()
+retriever = vectorstore.as_retriever()
+
+qa_chain = RetrievalQAWithSourcesChain.from_chain_type(
+    llm=ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), temperature=0),
+    retriever=retriever,
+    return_source_documents=True
 )
+
+BOT_OPEN_ID = os.getenv("BOT_OPEN_ID", "")
 
 def get_access_token():
     try:
@@ -32,17 +35,15 @@ def get_access_token():
             "app_secret": os.getenv("LARK_APP_SECRET")
         }
         response = requests.post(url, headers=headers, json=payload)
-        res_data = response.json()
-        print("🛑 Token response:", res_data)
-        return res_data["tenant_access_token"]
+        return response.json().get("tenant_access_token")
     except Exception as e:
-        print("❌ Failed to fetch Lark token:", e)
+        print("❌ Token fetch failed:", e)
         return None
 
 def send_lark_message(open_id, message):
     access_token = get_access_token()
     if not access_token:
-        print("⚠️ No access token. Message not sent.")
+        print("⚠️ No access token, message not sent.")
         return
 
     url = "https://open.larksuite.com/open-apis/im/v1/messages?receive_id_type=open_id"
@@ -57,36 +58,51 @@ def send_lark_message(open_id, message):
     }
     try:
         response = requests.post(url, headers=headers, json=payload)
-        print("📤 Lark message send result:", response.json())
+        print("📤 Message sent to Lark:", response.json())
     except Exception as e:
-        print("❌ Failed to send Lark message:", e)
+        print("❌ Message send failed:", e)
 
 @app.route("/lark/events/org", methods=["POST"])
-def lark_event_handler():
-    print("🧵 Full raw request received")
-    print(json.dumps(request.json, indent=2, ensure_ascii=False))
+def handle_event():
     body = request.json
+    print("📥 Incoming event:", json.dumps(body, indent=2, ensure_ascii=False))
 
     if body.get("type") == "url_verification":
-        return jsonify({"challenge": body["challenge"]})
+        return jsonify({"challenge": body.get("challenge")})
 
     if body.get("header", {}).get("event_type") == "im.message.receive_v1":
-        event = body["event"]
-        message = event["message"]
-        sender = event["sender"]
-        open_id = sender["sender_id"]["open_id"]
-        content = json.loads(message["content"])
-        user_question = content.get("text", "")
-        print("🟡 User message:", user_question)
+        event = body.get("event", {})
+        message = event.get("message", {})
+        sender = event.get("sender", {})
+        sender_id = sender.get("sender_id", {}).get("open_id", "")
+
+        if sender_id == BOT_OPEN_ID:
+            print("⏹ Ignored self message.")
+            return "OK"
+
+        if message.get("message_type") != "text":
+            print("⏹ Ignored non-text message.")
+            return "OK"
+
+        content = json.loads(message.get("content", "{}"))
+        user_question = content.get("text", "").strip()
+        print(f"💬 Question from {sender_id}: {user_question}")
 
         try:
-            answer = qa_chain.run(user_question)
-        except Exception as e:
-            print("❌ QA chain failed:", e)
-            answer = "Oops, I ran into an error. Please try again later."
+            result = qa_chain({"question": user_question})
+            answer = result.get("answer", "").strip()
+            sources = result.get("sources", "").strip()
 
-        print("🟢 Answer sent:", answer)
-        send_lark_message(open_id, answer)
+            # If answer is empty or from no source, assume hallucination
+            if not answer or not sources or "I don't know" in answer:
+                answer = "Sorry, I can only answer questions related to Utopia Education. Please ask something specific about our platform."
+
+        except Exception as e:
+            print("❌ QA processing failed:", e)
+            answer = "Oops, I couldn't process your question. Please try again later."
+
+        print("🟢 Final answer:", answer)
+        send_lark_message(sender_id, answer)
 
     return "OK"
 
