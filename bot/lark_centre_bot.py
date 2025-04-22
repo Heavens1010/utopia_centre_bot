@@ -17,7 +17,7 @@ print("🚀 STEP 0 ✅ Bot starting...")
 
 embedding = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
 vectorstore = Chroma(persist_directory="vector_store", embedding_function=embedding)
-retriever = vectorstore.as_retriever()
+retriever = vectorstore.as_retriever(search_kwargs={"k": 1})
 qa_chain = RetrievalQAWithSourcesChain.from_chain_type(
     llm=ChatOpenAI(
         openai_api_key=os.getenv("OPENAI_API_KEY"),
