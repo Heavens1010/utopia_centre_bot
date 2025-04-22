@@ -68,8 +68,8 @@ def lark_event_handler():
     else:
         answer = "Sorry, I don't know the answer to that yet."
 
-        print("🟢 Answer sent:", answer)
-        send_lark_message(open_id, answer)
+    print("🟢 Answer sent:", answer)
+    send_lark_message(open_id, answer)
 
     return "OK"
 
