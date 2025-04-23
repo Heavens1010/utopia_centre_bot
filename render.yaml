@@ -1,6 +1,10 @@
+
 services:
   - type: web
     name: utopia-centre-bot
     env: python
     buildCommand: "pip install -r requirements.txt"
     startCommand: "python kb_builder/build_vector_store_from_docs.py && python bot/lark_centre_bot.py"
+    plan: free
+    numInstances: 1     
+    autoDeploy: true
