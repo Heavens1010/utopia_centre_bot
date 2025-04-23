@@ -12,7 +12,7 @@ from langchain_community.embeddings import OpenAIEmbeddings
 
 load_dotenv()
 app = Flask(__name__)
-print("🚀 STEP 0 ✅ Bot starting...")
+print("STEP 0 Bot starting...")
 
 embedding = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
 vectorstore = Chroma(persist_directory="vector_store", embedding_function=embedding)
@@ -28,7 +28,6 @@ qa_chain = RetrievalQAWithSourcesChain.from_chain_type(
 )
 
 BOT_OPEN_ID = os.getenv("BOT_OPEN_ID", "")
-processed_messages = set()
 
 def get_access_token():
     try:
@@ -41,13 +40,13 @@ def get_access_token():
         response = requests.post(url, headers=headers, json=payload)
         return response.json().get("tenant_access_token")
     except Exception as e:
-        print("❌ STEP 0.1 Token fetch failed:", e)
+        print("Token fetch failed:", e)
         return None
 
 def send_lark_message(open_id, message):
     access_token = get_access_token()
     if not access_token:
-        print("⚠️ STEP 7 ⚠️ No access token, message not sent.")
+        print("No access token, message not sent.")
         return
 
     url = "https://open.larksuite.com/open-apis/im/v1/messages?receive_id_type=open_id"
@@ -62,14 +61,14 @@ def send_lark_message(open_id, message):
     }
     try:
         response = requests.post(url, headers=headers, json=payload)
-        print("✅ STEP 7 ✅ Message sent to Lark:", response.json())
+        print("Message sent to Lark:", response.json())
     except Exception as e:
-        print("❌ STEP 7 Message send failed:", e)
+        print("Message send failed:", e)
 
 @app.route("/lark/events/org", methods=["POST"])
 def handle_event():
     body = request.json
-    print("✅ STEP 1 ✅ Received event:")
+    print("STEP 1 Received event:")
     print("Final JSON body:", json.dumps(body, indent=2, ensure_ascii=False))
 
     if body.get("type") == "url_verification":
@@ -82,12 +81,6 @@ def handle_event():
     message = event.get("message", {})
     sender = event.get("sender", {})
     sender_id = sender.get("sender_id", {}).get("open_id", "")
-    message_id = message.get("message_id", "")
-
-    if message_id in processed_messages:
-        print("⚠️ Duplicate message ignored:", message_id)
-        return "OK"
-    processed_messages.add(message_id)
 
     if sender_id == BOT_OPEN_ID:
         return "OK"
@@ -97,14 +90,15 @@ def handle_event():
 
     content = json.loads(message.get("content", "{}"))
     user_input = content.get("text", "").strip()
-    print(f"✅ STEP 4 ✅ User asked: {user_input}")
+    print(f"STEP 4 User asked: {user_input}")
 
+    answer = ""
     try:
-        print("⏳ STEP 5 🔄 Calling qa_chain()...")
+        print("Calling qa_chain()...")
         start = time.time()
         result = qa_chain({"question": user_input})
         duration = time.time() - start
-        print(f"✅ STEP 6 ✅ QA result (took {duration:.2f}s):", json.dumps(result, indent=2, ensure_ascii=False))
+        print(f"Answer (took {duration:.2f}s):", result)
 
         answer = result.get("answer", "").strip()
         sources = result.get("sources", "").strip()
@@ -113,15 +107,16 @@ def handle_event():
             answer = "Sorry, I can only answer questions related to Utopia Education. Please ask something specific about our platform."
 
     except Exception as e:
-        print("❌ STEP 6.2 QA processing failed:")
+        print("QA processing failed:")
         traceback.print_exc()
         answer = "Oops, I couldn't process your question. Please try again later."
 
-    print("✅ STEP 6.3 Final answer:", answer)
+    print("Final answer:", answer)
     send_lark_message(sender_id, answer)
     return "OK"
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))
     app.run(host="0.0.0.0", port=port)
+
 
