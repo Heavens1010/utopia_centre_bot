@@ -12,7 +12,7 @@ from langchain_community.embeddings import OpenAIEmbeddings
 
 load_dotenv()
 app = Flask(__name__)
-print("STEP 0 Bot starting...")
+print("Bot starting...")
 
 embedding = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
 vectorstore = Chroma(persist_directory="vector_store", embedding_function=embedding)
@@ -28,6 +28,7 @@ qa_chain = RetrievalQAWithSourcesChain.from_chain_type(
 )
 
 BOT_OPEN_ID = os.getenv("BOT_OPEN_ID", "")
+recent_message_ids = set()
 
 def get_access_token():
     try:
@@ -68,7 +69,7 @@ def send_lark_message(open_id, message):
 @app.route("/lark/events/org", methods=["POST"])
 def handle_event():
     body = request.json
-    print("STEP 1 Received event:")
+    print("Received event:")
     print("Final JSON body:", json.dumps(body, indent=2, ensure_ascii=False))
 
     if body.get("type") == "url_verification":
@@ -81,6 +82,14 @@ def handle_event():
     message = event.get("message", {})
     sender = event.get("sender", {})
     sender_id = sender.get("sender_id", {}).get("open_id", "")
+    message_id = message.get("message_id", "")
+
+    if message_id in recent_message_ids:
+        print("Duplicate message_id, skipping...")
+        return "OK"
+    recent_message_ids.add(message_id)
+    if len(recent_message_ids) > 100:
+        recent_message_ids.pop()
 
     if sender_id == BOT_OPEN_ID:
         return "OK"
@@ -90,9 +99,8 @@ def handle_event():
 
     content = json.loads(message.get("content", "{}"))
     user_input = content.get("text", "").strip()
-    print(f"STEP 4 User asked: {user_input}")
+    print(f"User asked: {user_input}")
 
-    answer = ""
     try:
         print("Calling qa_chain()...")
         start = time.time()
@@ -118,5 +126,4 @@ def handle_event():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))
     app.run(host="0.0.0.0", port=port)
-
 
